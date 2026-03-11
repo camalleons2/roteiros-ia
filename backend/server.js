@@ -731,6 +731,265 @@ app.post('/api/gerar-roteiro', async (req, res) => {
   }
 });
 
+// ========== ROTA ADMIN PARA VISUALIZAR CÓDIGOS EM HTML ==========
+app.get('/admin/codigos', (req, res) => {
+  db.all(`
+    SELECT c.*, u.nome as usuario_nome 
+    FROM codigos c 
+    LEFT JOIN usuarios u ON c.usuario_id = u.id 
+    ORDER BY c.criado_em DESC
+  `, [], (err, rows) => {
+    if (err) {
+      return res.status(500).send('Erro ao buscar códigos');
+    }
+
+    // Contar estatísticas
+    const total = rows.length;
+    const usados = rows.filter(c => c.usado === 1).length;
+    const disponiveis = total - usados;
+
+    // Gerar HTML
+    let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Admin - Códigos de Ativação</title>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          padding: 20px;
+        }
+        .container {
+          max-width: 1200px;
+          margin: 0 auto;
+          background: white;
+          border-radius: 20px;
+          padding: 30px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+          color: #333;
+          margin-bottom: 20px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .stats {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 20px;
+          margin-bottom: 30px;
+        }
+        .stat-card {
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          color: white;
+          padding: 20px;
+          border-radius: 10px;
+          text-align: center;
+          box-shadow: 0 4px 10px rgba(102,126,234,0.3);
+        }
+        .stat-card h3 {
+          font-size: 2rem;
+          margin-bottom: 5px;
+        }
+        .stat-card p {
+          opacity: 0.9;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          background: white;
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        th {
+          background: linear-gradient(135deg, #667eea, #764ba2);
+          color: white;
+          padding: 12px;
+          text-align: left;
+          font-weight: 500;
+        }
+        td {
+          padding: 12px;
+          border-bottom: 1px solid #e0e0e0;
+        }
+        tr:hover {
+          background: #f5f5f5;
+        }
+        .usado {
+          background: #ffebee;
+          color: #c62828;
+        }
+        .disponivel {
+          background: #e8f5e9;
+          color: #2e7d32;
+        }
+        .status-badge {
+          padding: 5px 10px;
+          border-radius: 20px;
+          font-size: 0.85rem;
+          font-weight: bold;
+          display: inline-block;
+        }
+        .status-usado {
+          background: #ffcdd2;
+          color: #c62828;
+        }
+        .status-disponivel {
+          background: #c8e6c9;
+          color: #2e7d32;
+        }
+        .search-box {
+          margin-bottom: 20px;
+        }
+        .search-box input {
+          width: 100%;
+          padding: 12px;
+          border: 2px solid #e0e0e0;
+          border-radius: 8px;
+          font-size: 1rem;
+        }
+        .btn-copiar {
+          background: #28a745;
+          color: white;
+          border: none;
+          padding: 8px 15px;
+          border-radius: 5px;
+          cursor: pointer;
+          margin-bottom: 20px;
+        }
+        .btn-copiar:hover {
+          background: #218838;
+        }
+        .footer {
+          margin-top: 30px;
+          text-align: center;
+          color: #666;
+          font-size: 0.9rem;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>🔐 Admin - Códigos de Ativação</h1>
+        
+        <div class="stats">
+          <div class="stat-card">
+            <h3>${total}</h3>
+            <p>Total de Códigos</p>
+          </div>
+          <div class="stat-card" style="background: linear-gradient(135deg, #28a745, #20c997);">
+            <h3>${disponiveis}</h3>
+            <p>Disponíveis</p>
+          </div>
+          <div class="stat-card" style="background: linear-gradient(135deg, #dc3545, #c82333);">
+            <h3>${usados}</h3>
+            <p>Usados</p>
+          </div>
+        </div>
+
+        <button class="btn-copiar" onclick="copiarDisponiveis()">
+          📋 Copiar Códigos Disponíveis
+        </button>
+
+        <div class="search-box">
+          <input type="text" id="search" placeholder="🔍 Buscar código ou usuário..." onkeyup="filtrarTabela()">
+        </div>
+
+        <table id="tabela-codigos">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Código</th>
+              <th>Status</th>
+              <th>Usuário</th>
+              <th>Criado em</th>
+              <th>Usado em</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    rows.forEach(codigo => {
+      const statusClass = codigo.usado === 1 ? 'usado' : 'disponivel';
+      const statusBadge = codigo.usado === 1 
+        ? '<span class="status-badge status-usado">🔴 Usado</span>' 
+        : '<span class="status-badge status-disponivel">🟢 Disponível</span>';
+      
+      html += `
+        <tr class="${statusClass}">
+          <td>${codigo.id}</td>
+          <td><code>${codigo.codigo}</code></td>
+          <td>${statusBadge}</td>
+          <td>${codigo.usuario_nome || '-'}</td>
+          <td>${new Date(codigo.criado_em).toLocaleString('pt-BR')}</td>
+          <td>${codigo.usado_em ? new Date(codigo.usado_em).toLocaleString('pt-BR') : '-'}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <p>Atualizado em: ${new Date().toLocaleString('pt-BR')}</p>
+        </div>
+      </div>
+
+      <script>
+        function filtrarTabela() {
+          const input = document.getElementById('search');
+          const filter = input.value.toUpperCase();
+          const table = document.getElementById('tabela-codigos');
+          const tr = table.getElementsByTagName('tr');
+
+          for (let i = 1; i < tr.length; i++) {
+            const tdCodigo = tr[i].getElementsByTagName('td')[1];
+            const tdUsuario = tr[i].getElementsByTagName('td')[3];
+            if (tdCodigo || tdUsuario) {
+              const txtCodigo = tdCodigo.textContent || tdCodigo.innerText;
+              const txtUsuario = tdUsuario ? (tdUsuario.textContent || tdUsuario.innerText) : '';
+              if (txtCodigo.toUpperCase().indexOf(filter) > -1 || txtUsuario.toUpperCase().indexOf(filter) > -1) {
+                tr[i].style.display = '';
+              } else {
+                tr[i].style.display = 'none';
+              }
+            }
+          }
+        }
+
+        function copiarDisponiveis() {
+          const disponiveis = [];
+          const table = document.getElementById('tabela-codigos');
+          const tr = table.getElementsByTagName('tr');
+          
+          for (let i = 1; i < tr.length; i++) {
+            const statusCell = tr[i].getElementsByTagName('td')[2];
+            if (statusCell && statusCell.innerText.includes('🟢')) {
+              const codigoCell = tr[i].getElementsByTagName('td')[1];
+              disponiveis.push(codigoCell.innerText.trim());
+            }
+          }
+          
+          navigator.clipboard.writeText(disponiveis.join('\\n'));
+          alert(\`✅ \${disponiveis.length} códigos copiados!\`);
+        }
+      </script>
+    </body>
+    </html>
+    `;
+
+    res.send(html);
+  });
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`\n🚀 Servidor rodando na porta ${PORT}`);
