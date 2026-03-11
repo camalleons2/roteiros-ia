@@ -446,56 +446,96 @@ textarea::placeholder {
 
 .popup-conteudo {
   background: white;
-  padding: 30px;
+  padding: 20px;
   border-radius: 15px;
-  max-width: 400px;
-  width: 90%;
+  max-width: 450px;
+  width: 95%;
   text-align: center;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  max-height: 80vh;
+  max-height: 85vh;
   overflow-y: auto;
 }
 
 .popup-conteudo h3 {
   color: #333;
-  margin-bottom: 15px;
-  font-size: 1.5rem;
+  margin-bottom: 10px;
+  font-size: 1.3rem;
 }
 
 .popup-conteudo p {
   color: #666;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+  font-size: 0.95rem;
 }
 
 .cronometro {
-  font-size: 2rem;
+  font-size: 1.8rem;
   font-weight: bold;
   color: #667eea;
-  margin: 20px 0;
+  margin: 15px 0;
 }
 
 .popup-conteudo button {
-  padding: 12px 30px;
+  padding: 10px 20px;
   background: linear-gradient(135deg, #667eea, #764ba2);
   color: white !important;
   border: none;
   border-radius: 8px;
-  font-size: 1rem;
+  font-size: 0.95rem;
   cursor: pointer;
   transition: transform 0.2s;
+  margin: 5px;
 }
 
 .popup-conteudo button:hover {
-  transform: scale(1.05);
+  transform: scale(1.03);
 }
 
 .btn-fechar {
   background: #6c757d !important;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .btn-fechar:hover {
   background: #5a6268 !important;
+}
+
+/* ========== AJUSTES PARA TELA DA FRASE ========== */
+.frase-texto {
+  background: #f0f8ff;
+  border: 2px solid #28a745;
+  border-radius: 8px;
+  padding: 15px;
+  margin: 10px 0;
+  font-family: 'Courier New', monospace;
+  font-size: 1.1rem;
+  font-weight: bold;
+  text-align: center;
+  line-height: 1.5;
+  word-spacing: 5px;
+  color: #2c3e50;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.aviso-importante {
+  color: #dc3545;
+  font-weight: bold;
+  text-align: center;
+  margin: 10px 0;
+  font-size: 0.9rem;
+  background: #fff5f5;
+  padding: 8px;
+  border-radius: 8px;
+  border-left: 5px solid #dc3545;
+}
+
+.login-form input[type="checkbox"] {
+  margin: 8px 0 3px;
+  transform: scale(0.9);
+}
+
+.login-form label {
+  font-size: 0.9rem;
 }
 
 /* ===== RESPONSIVIDADE ===== */
