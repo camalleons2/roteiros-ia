@@ -615,20 +615,33 @@ button:disabled:hover {
 }
 
 /* ========== ESTILOS PARA FRASE DE RECUPERAÇÃO ========== */
-.frase-destacada {
-  background: #f8f9fa;
-  border: 3px solid #28a745;
-  border-radius: 12px;
+.frase-texto {
+  background: #f0f8ff;
+  border: 2px solid #28a745;
+  border-radius: 8px;
   padding: 20px;
   margin: 20px 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  align-items: center;
+  font-family: 'Courier New', monospace;
+  font-size: 1.3rem;
+  font-weight: bold;
+  text-align: center;
+  line-height: 1.8;
+  word-spacing: 10px;
+  color: #2c3e50;
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
+.aviso-importante {
+  color: #dc3545;
+  font-weight: bold;
+  text-align: center;
+  margin: 20px 0 10px;
+  font-size: 1.1rem;
+  background: #fff5f5;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 5px solid #dc3545;
+}
 .palavra-frase {
   background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
@@ -648,6 +661,35 @@ button:disabled:hover {
   transform: scale(1.05);
   background: linear-gradient(135deg, #5a67d8, #6b46a1);
   box-shadow: 0 4px 8px rgba(102, 126, 234, 0.5);
+}
+
+/* ========== ESTILOS PARA FRASE DE RECUPERAÇÃO ========== */
+.frase-texto {
+  background: #f0f8ff;
+  border: 2px solid #28a745;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+  font-family: 'Courier New', monospace;
+  font-size: 1.3rem;
+  font-weight: bold;
+  text-align: center;
+  line-height: 1.8;
+  word-spacing: 10px;
+  color: #2c3e50;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.aviso-importante {
+  color: #dc3545;
+  font-weight: bold;
+  text-align: center;
+  margin: 20px 0 10px;
+  font-size: 1.1rem;
+  background: #fff5f5;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 5px solid #dc3545;
 }
 
 .aviso-importante {

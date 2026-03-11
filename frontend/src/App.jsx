@@ -133,7 +133,7 @@ function App() {
     }
   };
 
-  // ========== FUNÇÃO DE CADASTRO COM CÓDIGO (MODIFICADA PARA FRASE) ==========
+  // ========== FUNÇÃO DE CADASTRO COM CÓDIGO (MODIFICADA COM LOGIN AUTOMÁTICO) ==========
   const handleCadastro = async () => {
     if (!formCadastro.usuario || !formCadastro.senha || !formCadastro.confirmarSenha || !formCadastro.codigo) {
       setErroLogin('Preencha todos os campos obrigatórios (usuário, senha, código)');
@@ -154,16 +154,61 @@ function App() {
       });
 
       if (response.data.sucesso) {
-	console.log('🔑 FRASE RECEBIDA:', response.data.fraseRecuperacao);
         // Salvar a frase gerada para mostrar
         setFraseGerada(response.data.fraseRecuperacao);
+        
+        // Já fazer login automático com os dados recebidos
+        setUsuario(response.data.usuario);
+        setUsuarioId(response.data.usuarioId);
+        localStorage.setItem('usuario', response.data.usuario);
+        localStorage.setItem('usuarioId', response.data.usuarioId);
         
         // Limpar formulário
         setFormCadastro({ usuario: '', senha: '', confirmarSenha: '', email: '', codigo: '' });
         setErroLogin('');
         
+        // Buscar créditos do novo usuário
+        buscarCreditos(response.data.usuarioId);
+        
         // Mostrar tela com a frase
         setMostrarFrase(true);
+      }
+    } catch (error) {
+      if (error.response && error.response.data && error.response.data.erro) {
+        setErroLogin(error.response.data.erro);
+      } else {
+        setErroLogin('Erro no servidor. Tente novamente.');
+      }
+    }
+  };
+
+  // ========== FUNÇÃO DE RECUPERAÇÃO POR FRASE ==========
+  const handleRecuperarPorFrase = async () => {
+    if (!fraseRecuperacao || !novaSenhaRecuperacao || !confirmarNovaSenha) {
+      setErroLogin('Preencha todos os campos');
+      return;
+    }
+
+    if (novaSenhaRecuperacao !== confirmarNovaSenha) {
+      setErroLogin('As senhas não coincidem');
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${API_URL}/api/recuperar-frase`, {
+        frase: fraseRecuperacao.trim().toLowerCase(),
+        novaSenha: novaSenhaRecuperacao
+      });
+
+      if (response.data.sucesso) {
+        setErroLogin('');
+        setModoRecuperacao(false);
+        setFraseRecuperacao('');
+        setNovaSenhaRecuperacao('');
+        setConfirmarNovaSenha('');
+        
+        alert('✅ Senha alterada com sucesso! Faça login com sua nova senha.');
+        setModoLogin('login');
       }
     } catch (error) {
       if (error.response && error.response.data && error.response.data.erro) {
@@ -313,43 +358,6 @@ function App() {
     const minutos = Math.floor((segundos % 3600) / 60);
     const segs = segundos % 60;
     return `${horas}h ${minutos}m ${segs}s`;
-  };
-
-  // ========== FUNÇÃO DE RECUPERAÇÃO POR FRASE ==========
-  const handleRecuperarPorFrase = async () => {
-    if (!fraseRecuperacao || !novaSenhaRecuperacao || !confirmarNovaSenha) {
-      setErroLogin('Preencha todos os campos');
-      return;
-    }
-
-    if (novaSenhaRecuperacao !== confirmarNovaSenha) {
-      setErroLogin('As senhas não coincidem');
-      return;
-    }
-
-    try {
-      const response = await axios.post(`${API_URL}/api/recuperar-frase`, {
-        frase: fraseRecuperacao.trim().toLowerCase(),
-        novaSenha: novaSenhaRecuperacao
-      });
-
-      if (response.data.sucesso) {
-        setErroLogin('');
-        setModoRecuperacao(false);
-        setFraseRecuperacao('');
-        setNovaSenhaRecuperacao('');
-        setConfirmarNovaSenha('');
-        
-        alert('✅ Senha alterada com sucesso! Faça login com sua nova senha.');
-        setModoLogin('login');
-      }
-    } catch (error) {
-      if (error.response && error.response.data && error.response.data.erro) {
-        setErroLogin(error.response.data.erro);
-      } else {
-        setErroLogin('Erro no servidor. Tente novamente.');
-      }
-    }
   };
 
   return (
@@ -737,10 +745,8 @@ function App() {
             {mostrarFrase && (
               <div className="login-form">
                 <h3>⚠️ SUA FRASE DE RECUPERAÇÃO ÚNICA</h3>
-                <div className="frase-destacada">
-                  {fraseGerada.split(' ').map((palavra, index) => (
-                    <span key={index} className="palavra-frase">{palavra}</span>
-                  ))}
+                <div className="frase-texto">
+                  {fraseGerada}
                 </div>
                 <p className="aviso-importante">
                   🔴 <strong>GUARDE ESTA FRASE EM LOCAL SEGURO!</strong>
