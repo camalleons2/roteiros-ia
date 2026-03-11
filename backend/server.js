@@ -306,7 +306,8 @@ function gerarFraseRecuperacao() {
 // ========== CONFIGURAÇÃO DAS CHAVES GROQ ==========
 const apiKeys = [
   process.env.GROQ_API_KEY_1,
-  process.env.GROQ_API_KEY_2
+  process.env.GROQ_API_KEY_2,
+  process.env.GROQ_API_KEY_3
 ].filter(key => key);
 
 console.log(`🔑 ${apiKeys.length} chave(s) Groq carregada(s)`);
