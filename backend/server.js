@@ -33,7 +33,7 @@ db.serialize(() => {
     )
   `);
 
-  // Verificar se a coluna frase_hash existe, se não, adicionar
+        // Verificar se a coluna frase_hash existe, se não, adicionar (sem UNIQUE constraint)
   db.all("PRAGMA table_info(usuarios)", (err, columns) => {
     if (err) {
       console.error('Erro ao verificar colunas:', err);
@@ -43,9 +43,9 @@ db.serialize(() => {
     const temFraseHash = columns.some(col => col.name === 'frase_hash');
     if (!temFraseHash) {
       console.log('🔄 Adicionando coluna frase_hash...');
-      db.run(`ALTER TABLE usuarios ADD COLUMN frase_hash TEXT UNIQUE`, (err) => {
+      db.run(`ALTER TABLE usuarios ADD COLUMN frase_hash TEXT`, (err) => {
         if (err) {
-          console.error('Erro ao adicionar frase_hash:', err);
+          console.error('❌ Erro ao adicionar frase_hash:', err);
         } else {
           console.log('✅ Coluna frase_hash adicionada com sucesso!');
         }
