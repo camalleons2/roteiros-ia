@@ -3,6 +3,8 @@ import axios from 'axios';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import './App.css';
+const API_URL = process.env.REACT_APP_API_URL || 'https://roteiros-ia.onrender.com';
+console.log('🌐 Conectando ao backend:', API_URL);
 
 function App() {
   // ========== TODOS OS STATES ==========
@@ -83,7 +85,7 @@ function App() {
   // Buscar créditos do usuário no backend
   const buscarCreditos = async (id) => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/creditos?usuarioId=${id}`);
+      const response = await axios.get(`${API_URL}/api/creditos?usuarioId=${id}`);
       setCreditos(response.data);
     } catch (error) {
       console.error('Erro ao buscar créditos:', error);
@@ -98,7 +100,7 @@ function App() {
     }
 
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/login`, {
+      const response = await axios.post(`${API_URL}/api/login`, {
         usuario: formLogin.usuario,
         senha: formLogin.senha
       });
@@ -135,7 +137,7 @@ function App() {
     }
 
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/cadastro`, {
+      const response = await axios.post(`${API_URL}/api/cadastro`, {
         usuario: formCadastro.usuario,
         senha: formCadastro.senha,
         email: formCadastro.email || null,
@@ -220,7 +222,7 @@ function App() {
     setErro('');
 
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/gerar-roteiro`, {
+      const response = await axios.post(`${API_URL}/api/gerar-roteiro`, {
         ideia,
         tipoVideo,
         tom,
@@ -232,7 +234,7 @@ function App() {
       setRoteiroGerado(processado);
       
       // Incrementar créditos
-      const creditosResponse = await axios.post(`${process.env.REACT_APP_API_URL}/api/incrementar-creditos`, {
+      const creditosResponse = await axios.post(`${API_URL}/api/incrementar-creditos`, {
         usuarioId
       });
       
