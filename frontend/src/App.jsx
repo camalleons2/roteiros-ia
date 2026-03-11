@@ -154,6 +154,7 @@ function App() {
       });
 
       if (response.data.sucesso) {
+	console.log('🔑 FRASE RECEBIDA:', response.data.fraseRecuperacao);
         // Salvar a frase gerada para mostrar
         setFraseGerada(response.data.fraseRecuperacao);
         
