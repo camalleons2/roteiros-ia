@@ -613,3 +613,66 @@ button:disabled:hover {
   border-radius: 8px;
   border-left: 5px solid #dc3545;
 }
+
+/* ========== ESTILOS PARA FRASE DE RECUPERAÇÃO ========== */
+.frase-destacada {
+  background: #f8f9fa;
+  border: 3px solid #28a745;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.palavra-frase {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  padding: 10px 18px;
+  border-radius: 30px;
+  font-family: 'Courier New', monospace;
+  font-size: 1.1rem;
+  font-weight: bold;
+  display: inline-block;
+  margin: 4px;
+  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+  border: 1px solid #5a67d8;
+  transition: transform 0.2s;
+}
+
+.palavra-frase:hover {
+  transform: scale(1.05);
+  background: linear-gradient(135deg, #5a67d8, #6b46a1);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.5);
+}
+
+.aviso-importante {
+  color: #dc3545;
+  font-weight: bold;
+  text-align: center;
+  margin: 20px 0 10px;
+  font-size: 1.1rem;
+  background: #fff5f5;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 5px solid #dc3545;
+}
+
+/* Garantir que a frase apareça em caixas coloridas */
+.frase-container {
+  width: 100%;
+  text-align: center;
+}
+
+/* Remover qualquer estilo de lista que possa estar interferindo */
+.frase-destacada ul, 
+.frase-destacada li {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: inline;
+}
