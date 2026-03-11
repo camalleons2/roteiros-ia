@@ -568,3 +568,48 @@ button:disabled:hover {
   transform: none;
   box-shadow: none;
 }
+
+/* ========== ESTILOS PARA FRASE DE RECUPERAÇÃO ========== */
+.frase-destacada {
+  background: #f8f9fa;
+  border: 3px solid #28a745;
+  border-radius: 12px;
+  padding: 25px;
+  margin: 25px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.palavra-frase {
+  background: #007bff;
+  color: white;
+  padding: 10px 16px;
+  border-radius: 30px;
+  font-family: 'Courier New', monospace;
+  font-size: 1.2em;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+  border: 1px solid #0056b3;
+}
+
+.palavra-frase:hover {
+  background: #0056b3;
+  transform: scale(1.05);
+  transition: all 0.2s;
+}
+
+.aviso-importante {
+  color: #dc3545;
+  font-weight: bold;
+  text-align: center;
+  margin: 15px 0;
+  font-size: 1.1em;
+  background: #fff3f3;
+  padding: 10px;
+  border-radius: 8px;
+  border-left: 5px solid #dc3545;
+}
