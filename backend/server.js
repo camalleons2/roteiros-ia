@@ -19,7 +19,7 @@ const db = new sqlite3.Database(dbPath);
 
 // Criar tabelas se não existirem
 db.serialize(() => {
-  // Tabela de usuários
+    // Tabela de usuários - Criar ou atualizar
   db.run(`
     CREATE TABLE IF NOT EXISTS usuarios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,10 +29,31 @@ db.serialize(() => {
       ip TEXT,
       reset_token TEXT,
       reset_expira INTEGER,
-      frase_hash TEXT UNIQUE,
       data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Verificar se a coluna frase_hash existe, se não, adicionar
+  db.all("PRAGMA table_info(usuarios)", (err, columns) => {
+    if (err) {
+      console.error('Erro ao verificar colunas:', err);
+      return;
+    }
+    
+    const temFraseHash = columns.some(col => col.name === 'frase_hash');
+    if (!temFraseHash) {
+      console.log('🔄 Adicionando coluna frase_hash...');
+      db.run(`ALTER TABLE usuarios ADD COLUMN frase_hash TEXT UNIQUE`, (err) => {
+        if (err) {
+          console.error('Erro ao adicionar frase_hash:', err);
+        } else {
+          console.log('✅ Coluna frase_hash adicionada com sucesso!');
+        }
+      });
+    } else {
+      console.log('✅ Coluna frase_hash já existe');
+    }
+  });
 
   // Tabela de créditos diários
   db.run(`
