@@ -3,6 +3,7 @@ import axios from 'axios';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import './App.css';
+
 const API_URL = process.env.REACT_APP_API_URL || 'https://roteiros-ia.onrender.com';
 console.log('🌐 Conectando ao backend:', API_URL);
 
@@ -38,6 +39,14 @@ function App() {
     email: '',
     codigo: '' 
   });
+  
+  // ========== NOVOS STATES PARA RECUPERAÇÃO POR FRASE ==========
+  const [modoRecuperacao, setModoRecuperacao] = useState(false);
+  const [fraseRecuperacao, setFraseRecuperacao] = useState('');
+  const [novaSenhaRecuperacao, setNovaSenhaRecuperacao] = useState('');
+  const [confirmarNovaSenha, setConfirmarNovaSenha] = useState('');
+  const [fraseGerada, setFraseGerada] = useState('');
+  const [mostrarFrase, setMostrarFrase] = useState(false);
   
   const [erroLogin, setErroLogin] = useState('');
   
@@ -124,7 +133,7 @@ function App() {
     }
   };
 
-  // ========== FUNÇÃO DE CADASTRO COM CÓDIGO ==========
+  // ========== FUNÇÃO DE CADASTRO COM CÓDIGO (MODIFICADA PARA FRASE) ==========
   const handleCadastro = async () => {
     if (!formCadastro.usuario || !formCadastro.senha || !formCadastro.confirmarSenha || !formCadastro.codigo) {
       setErroLogin('Preencha todos os campos obrigatórios (usuário, senha, código)');
@@ -145,15 +154,15 @@ function App() {
       });
 
       if (response.data.sucesso) {
-        // Após cadastrar, já faz login automaticamente
-        setUsuario(response.data.usuario);
-        setUsuarioId(response.data.usuarioId);
-        localStorage.setItem('usuario', response.data.usuario);
-        localStorage.setItem('usuarioId', response.data.usuarioId);
-        setMostrarLogin(false);
+        // Salvar a frase gerada para mostrar
+        setFraseGerada(response.data.fraseRecuperacao);
+        
+        // Limpar formulário
         setFormCadastro({ usuario: '', senha: '', confirmarSenha: '', email: '', codigo: '' });
         setErroLogin('');
-        setCreditos({ usado: 0, limite: 10, restante: 10 });
+        
+        // Mostrar tela com a frase
+        setMostrarFrase(true);
       }
     } catch (error) {
       if (error.response && error.response.data && error.response.data.erro) {
@@ -303,6 +312,43 @@ function App() {
     const minutos = Math.floor((segundos % 3600) / 60);
     const segs = segundos % 60;
     return `${horas}h ${minutos}m ${segs}s`;
+  };
+
+  // ========== FUNÇÃO DE RECUPERAÇÃO POR FRASE ==========
+  const handleRecuperarPorFrase = async () => {
+    if (!fraseRecuperacao || !novaSenhaRecuperacao || !confirmarNovaSenha) {
+      setErroLogin('Preencha todos os campos');
+      return;
+    }
+
+    if (novaSenhaRecuperacao !== confirmarNovaSenha) {
+      setErroLogin('As senhas não coincidem');
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${API_URL}/api/recuperar-frase`, {
+        frase: fraseRecuperacao.trim().toLowerCase(),
+        novaSenha: novaSenhaRecuperacao
+      });
+
+      if (response.data.sucesso) {
+        setErroLogin('');
+        setModoRecuperacao(false);
+        setFraseRecuperacao('');
+        setNovaSenhaRecuperacao('');
+        setConfirmarNovaSenha('');
+        
+        alert('✅ Senha alterada com sucesso! Faça login com sua nova senha.');
+        setModoLogin('login');
+      }
+    } catch (error) {
+      if (error.response && error.response.data && error.response.data.erro) {
+        setErroLogin(error.response.data.erro);
+      } else {
+        setErroLogin('Erro no servidor. Tente novamente.');
+      }
+    }
   };
 
   return (
@@ -511,29 +557,85 @@ function App() {
         </>
       )}
 
-      {/* ========== POPUP DE LOGIN/CADASTRO COM CÓDIGO ========== */}
+      {/* ========== POPUP DE LOGIN/CADASTRO/RECUPERAÇÃO ========== */}
       {mostrarLogin && (
         <div className="popup-overlay" onClick={() => setMostrarLogin(false)}>
           <div className="popup-conteudo" onClick={(e) => e.stopPropagation()}>
             
-            {/* TABS */}
-            <div className="login-tabs">
-              <button 
-                className={modoLogin === 'login' ? 'tab-ativo' : ''} 
-                onClick={() => setModoLogin('login')}
-              >
-                Entrar
-              </button>
-              <button 
-                className={modoLogin === 'cadastro' ? 'tab-ativo' : ''} 
-                onClick={() => setModoLogin('cadastro')}
-              >
-                Cadastrar (com código)
-              </button>
-            </div>
+            {/* TABS - só mostra se não estiver em modo recuperação */}
+            {!modoRecuperacao && !mostrarFrase && (
+              <div className="login-tabs">
+                <button 
+                  className={modoLogin === 'login' ? 'tab-ativo' : ''} 
+                  onClick={() => setModoLogin('login')}
+                >
+                  Entrar
+                </button>
+                <button 
+                  className={modoLogin === 'cadastro' ? 'tab-ativo' : ''} 
+                  onClick={() => setModoLogin('cadastro')}
+                >
+                  Cadastrar
+                </button>
+              </div>
+            )}
+
+            {/* ===== TELA DE RECUPERAÇÃO POR FRASE ===== */}
+            {modoRecuperacao && (
+              <div className="login-form">
+                <h3>🔐 Recuperar Senha</h3>
+                <p className="aviso-codigo">
+                  Digite sua frase de recuperação de 12 palavras e a nova senha.
+                </p>
+                
+                <textarea
+                  placeholder="Frase de recuperação (12 palavras)"
+                  value={fraseRecuperacao}
+                  onChange={(e) => setFraseRecuperacao(e.target.value)}
+                  className="login-input"
+                  rows="3"
+                  style={{ fontFamily: 'monospace' }}
+                />
+                
+                <input
+                  type="password"
+                  placeholder="Nova senha *"
+                  value={novaSenhaRecuperacao}
+                  onChange={(e) => setNovaSenhaRecuperacao(e.target.value)}
+                  className="login-input"
+                />
+                
+                <input
+                  type="password"
+                  placeholder="Confirmar nova senha *"
+                  value={confirmarNovaSenha}
+                  onChange={(e) => setConfirmarNovaSenha(e.target.value)}
+                  className="login-input"
+                />
+                
+                {erroLogin && <p className="erro-login">{erroLogin}</p>}
+                
+                <button 
+                  className="btn-login-submit"
+                  onClick={handleRecuperarPorFrase}
+                >
+                  Redefinir Senha
+                </button>
+                
+                <button 
+                  className="btn-link"
+                  onClick={() => {
+                    setModoRecuperacao(false);
+                    setErroLogin('');
+                  }}
+                >
+                  ← Voltar ao login
+                </button>
+              </div>
+            )}
 
             {/* ===== LOGIN ===== */}
-            {modoLogin === 'login' && (
+            {modoLogin === 'login' && !modoRecuperacao && !mostrarFrase && (
               <div className="login-form">
                 <h3>🔐 Entrar</h3>
                 <input
@@ -551,17 +653,28 @@ function App() {
                   className="login-input"
                 />
                 {erroLogin && <p className="erro-login">{erroLogin}</p>}
+                
                 <button 
                   className="btn-login-submit"
                   onClick={handleLogin}
                 >
                   Entrar
                 </button>
+                
+                <button 
+                  className="btn-link"
+                  onClick={() => {
+                    setModoRecuperacao(true);
+                    setErroLogin('');
+                  }}
+                >
+                  Esqueceu a senha? Recupere com frase secreta
+                </button>
               </div>
             )}
 
-            {/* ===== CADASTRO COM CÓDIGO DE ATIVAÇÃO ===== */}
-            {modoLogin === 'cadastro' && (
+            {/* ===== CADASTRO COM CÓDIGO ===== */}
+            {modoLogin === 'cadastro' && !mostrarFrase && (
               <div className="login-form">
                 <h3>📝 Criar Conta</h3>
                 <p className="aviso-codigo">
@@ -614,12 +727,52 @@ function App() {
                   className="btn-login-submit"
                   onClick={handleCadastro}
                 >
-                  Cadastrar e Ativar
+                  Cadastrar e Gerar Frase
                 </button>
               </div>
             )}
 
-            <button className="btn-fechar" onClick={() => setMostrarLogin(false)}>
+            {/* ===== TELA DE EXIBIÇÃO DA FRASE GERADA ===== */}
+            {mostrarFrase && (
+              <div className="login-form">
+                <h3>⚠️ SUA FRASE DE RECUPERAÇÃO ÚNICA</h3>
+                <div className="frase-destacada">
+                  {fraseGerada.split(' ').map((palavra, index) => (
+                    <span key={index} className="palavra-frase">{palavra}</span>
+                  ))}
+                </div>
+                <p className="aviso-importante">
+                  🔴 <strong>GUARDE ESTA FRASE EM LOCAL SEGURO!</strong>
+                </p>
+                <p className="aviso-importante">
+                  Ela é a única forma de recuperar sua conta se esquecer a senha.
+                  Sem ela, não há como recuperar o acesso.
+                </p>
+                <p className="aviso-importante">
+                  ⚠️ Esta frase será mostrada apenas UMA VEZ.
+                </p>
+                
+                <input
+                  type="checkbox"
+                  id="confirmei"
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setMostrarFrase(false);
+                      setMostrarLogin(false);
+                    }
+                  }}
+                />
+                <label htmlFor="confirmei" style={{ marginLeft: '8px' }}>
+                  Confirmo que anotei minha frase em local seguro
+                </label>
+              </div>
+            )}
+
+            <button className="btn-fechar" onClick={() => {
+              setMostrarLogin(false);
+              setMostrarFrase(false);
+              setModoRecuperacao(false);
+            }}>
               Fechar
             </button>
           </div>
