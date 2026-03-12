@@ -571,96 +571,93 @@ app.post('/api/webhook-lastlink', express.json(), async (req, res) => {
     res.status(500).json({ erro: 'Erro interno' });
   }
 });
-// ========== ROTA PARA RECRIAR O BANCO (USE UMA VEZ!) ==========
-
+// // ========== ROTA PARA RECRIAR O BANCO (VERSÃO FINAL) ==========
 app.get('/api/recreate-db', (req, res) => {
+  const fs = require('fs');
+  const dbPath = path.join(__dirname, 'database.sqlite');
+  const tempDbPath = path.join(__dirname, 'database-new.sqlite');
+
   try {
-    // Fecha a conexão atual para liberar o arquivo
-    db.close((err) => {
-      if (err) {
-        console.error('Erro ao fechar banco:', err);
-        return res.status(500).send('Erro ao fechar banco.');
-      }
-      console.log('🔒 Conexão com o banco fechada.');
-
-      // Apaga o arquivo do banco
-      const fs = require('fs');
-      const dbPath = path.join(__dirname, 'database.sqlite');
-
-      if (fs.existsSync(dbPath)) {
-        fs.unlinkSync(dbPath);
-        console.log('🗑️ Banco antigo removido.');
-      }
-
-      // Recria o banco com as tabelas
-      const novoDb = new sqlite3.Database(dbPath);
-      novoDb.serialize(() => {
-        // Tabela usuarios
-        novoDb.run(`
-          CREATE TABLE usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT UNIQUE NOT NULL,
-            senha TEXT NOT NULL,
-            email TEXT UNIQUE,
-            ip TEXT,
-            reset_token TEXT,
-            reset_expira INTEGER,
-            frase_hash TEXT,
-            data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
-        
-        // Tabela creditos
-        novoDb.run(`
-          CREATE TABLE creditos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario_id INTEGER NOT NULL,
-            data TEXT NOT NULL,
-            usado INTEGER DEFAULT 0,
-            limite INTEGER DEFAULT 10,
-            FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
-            UNIQUE(usuario_id, data)
-          )
-        `);
-        
-        // Tabela codigos
-        novoDb.run(`
-          CREATE TABLE codigos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            codigo TEXT UNIQUE NOT NULL,
-            usado INTEGER DEFAULT 0,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            usado_em DATETIME,
-            usuario_id INTEGER,
-            usuario_email TEXT,
-            FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-          )
-        `);
-        
-        // Tabela dispositivos
-        novoDb.run(`
-          CREATE TABLE dispositivos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario_id INTEGER NOT NULL,
-            fingerprint TEXT NOT NULL,
-            ultimo_acesso DATETIME DEFAULT CURRENT_TIMESTAMP,
-            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-            ativo INTEGER DEFAULT 1,
-            FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
-            UNIQUE(usuario_id, fingerprint)
-          )
-        `);
-        
-        // Índice
-        novoDb.run(`CREATE INDEX IF NOT EXISTS idx_dispositivos_fingerprint ON dispositivos(fingerprint)`);
-        
-        console.log('✅ Banco recriado com sucesso!');
-        novoDb.close();
-      });
-
-      res.send('✅ Banco de dados recriado com sucesso! Faça um novo deploy para usar o banco novo.');
+    // Cria um novo banco de dados em um arquivo temporário
+    console.log('🔄 Criando novo banco de dados...');
+    const novoDb = new sqlite3.Database(tempDbPath);
+    
+    novoDb.serialize(() => {
+      // Cria todas as tabelas
+      novoDb.run(`
+        CREATE TABLE usuarios (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nome TEXT UNIQUE NOT NULL,
+          senha TEXT NOT NULL,
+          email TEXT UNIQUE,
+          ip TEXT,
+          reset_token TEXT,
+          reset_expira INTEGER,
+          frase_hash TEXT,
+          data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
+      novoDb.run(`
+        CREATE TABLE creditos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          usuario_id INTEGER NOT NULL,
+          data TEXT NOT NULL,
+          usado INTEGER DEFAULT 0,
+          limite INTEGER DEFAULT 10,
+          FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+          UNIQUE(usuario_id, data)
+        )
+      `);
+      
+      novoDb.run(`
+        CREATE TABLE codigos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          codigo TEXT UNIQUE NOT NULL,
+          usado INTEGER DEFAULT 0,
+          criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+          usado_em DATETIME,
+          usuario_id INTEGER,
+          usuario_email TEXT,
+          FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+        )
+      `);
+      
+      novoDb.run(`
+        CREATE TABLE dispositivos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          usuario_id INTEGER NOT NULL,
+          fingerprint TEXT NOT NULL,
+          ultimo_acesso DATETIME DEFAULT CURRENT_TIMESTAMP,
+          criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+          ativo INTEGER DEFAULT 1,
+          FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+          UNIQUE(usuario_id, fingerprint)
+        )
+      `);
+      
+      novoDb.run(`CREATE INDEX IF NOT EXISTS idx_dispositivos_fingerprint ON dispositivos(fingerprint)`);
+      
+      novoDb.close();
+      console.log('✅ Novo banco criado com sucesso em:', tempDbPath);
+      
+      // Instruções para o usuário
+      res.send(`
+        <h2>✅ Banco recriado com sucesso!</h2>
+        <p>O novo banco foi criado em: <code>${tempDbPath}</code></p>
+        <p><strong>⚠️ Ação necessária:</strong></p>
+        <ol>
+          <li>Execute os seguintes comandos no shell do Render para substituir o banco antigo pelo novo:</li>
+          <pre>
+            cd /opt/render/project/src/backend
+            mv database.sqlite database-old.sqlite
+            mv database-new.sqlite database.sqlite
+          </pre>
+          <li>Reinicie o serviço manualmente no dashboard do Render.</li>
+        </ol>
+        <p>Após reiniciar, o novo banco estará ativo.</p>
+      `);
     });
-
   } catch (error) {
     console.error('❌ Erro ao recriar banco:', error);
     res.status(500).send('Erro: ' + error.message);
