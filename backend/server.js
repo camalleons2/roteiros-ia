@@ -571,7 +571,89 @@ app.post('/api/webhook-lastlink', express.json(), async (req, res) => {
     res.status(500).json({ erro: 'Erro interno' });
   }
 });
-
+// ========== ROTA PARA RECRIAR O BANCO (USE UMA VEZ!) ==========
+app.get('/api/recreate-db', (req, res) => {
+  try {
+    // Fecha a conexão atual
+    db.close();
+    
+    // Apaga o arquivo do banco
+    const fs = require('fs');
+    const dbPath = path.join(__dirname, 'database.sqlite');
+    
+    if (fs.existsSync(dbPath)) {
+      fs.unlinkSync(dbPath);
+      console.log('🗑️ Banco antigo removido');
+    }
+    
+    // Recria a conexão e as tabelas
+    const novaDb = new sqlite3.Database(dbPath);
+    novaDb.serialize(() => {
+      // Tabela usuarios (COM frase_hash)
+      novaDb.run(`
+        CREATE TABLE usuarios (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nome TEXT UNIQUE NOT NULL,
+          senha TEXT NOT NULL,
+          email TEXT UNIQUE,
+          ip TEXT,
+          reset_token TEXT,
+          reset_expira INTEGER,
+          frase_hash TEXT,
+          data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
+      // Tabela creditos
+      novaDb.run(`
+        CREATE TABLE creditos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          usuario_id INTEGER NOT NULL,
+          data TEXT NOT NULL,
+          usado INTEGER DEFAULT 0,
+          limite INTEGER DEFAULT 10,
+          FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+          UNIQUE(usuario_id, data)
+        )
+      `);
+      
+      // Tabela codigos
+      novaDb.run(`
+        CREATE TABLE codigos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          codigo TEXT UNIQUE NOT NULL,
+          usado INTEGER DEFAULT 0,
+          criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+          usado_em DATETIME,
+          usuario_id INTEGER,
+          usuario_email TEXT,
+          FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+        )
+      `);
+      
+      // Tabela dispositivos
+      novaDb.run(`
+        CREATE TABLE dispositivos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          usuario_id INTEGER NOT NULL,
+          fingerprint TEXT NOT NULL,
+          ultimo_acesso DATETIME DEFAULT CURRENT_TIMESTAMP,
+          criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+          ativo INTEGER DEFAULT 1,
+          FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+          UNIQUE(usuario_id, fingerprint)
+        )
+      `);
+      
+      console.log('✅ Banco recriado com sucesso!');
+      res.send('✅ Banco de dados recriado com sucesso! Agora gere novos códigos.');
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao recriar banco:', error);
+    res.status(500).send('Erro: ' + error.message);
+  }
+});
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`\n🚀 Servidor rodando na porta ${PORT}`);
