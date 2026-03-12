@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://roteiros-ia.onrender.com';
@@ -27,6 +28,8 @@ function App() {
   const [usuarioId, setUsuarioId] = useState(null);
   const [mostrarLogin, setMostrarLogin] = useState(false);
   const [modoLogin, setModoLogin] = useState('login');
+  const [mostrarCampoCodigo, setMostrarCampoCodigo] = useState(false);
+  const [codigoDispositivo, setCodigoDispositivo] = useState('');
   
   // Formulário de login
   const [formLogin, setFormLogin] = useState({ usuario: '', senha: '' });
@@ -101,17 +104,38 @@ function App() {
     }
   };
 
-  // ========== FUNÇÃO DE LOGIN ==========
+  // ========== FUNÇÃO PARA GERAR FINGERPRINT DO DISPOSITIVO ==========
+  const gerarFingerprint = async () => {
+    try {
+      const fp = await FingerprintJS.load();
+      const result = await fp.get();
+      return result.visitorId; // Identificador único do dispositivo
+    } catch (error) {
+      console.error('Erro ao gerar fingerprint:', error);
+      return null;
+    }
+  };
+
+  // ========== FUNÇÃO DE LOGIN COM FINGERPRINT ==========
   const handleLogin = async () => {
     if (!formLogin.usuario || !formLogin.senha) {
       setErroLogin('Preencha todos os campos');
       return;
     }
 
+    // Gerar fingerprint do dispositivo
+    const fingerprint = await gerarFingerprint();
+    if (!fingerprint) {
+      setErroLogin('Erro ao identificar seu dispositivo. Tente novamente.');
+      return;
+    }
+
     try {
       const response = await axios.post(`${API_URL}/api/login`, {
         usuario: formLogin.usuario,
-        senha: formLogin.senha
+        senha: formLogin.senha,
+        fingerprint: fingerprint,
+        codigoDispositivo: codigoDispositivo || null
       });
 
       if (response.data.sucesso) {
@@ -121,19 +145,30 @@ function App() {
         localStorage.setItem('usuarioId', response.data.usuarioId);
         setMostrarLogin(false);
         setFormLogin({ usuario: '', senha: '' });
+        setCodigoDispositivo('');
+        setMostrarCampoCodigo(false);
         setErroLogin('');
         buscarCreditos(response.data.usuarioId);
+        
+        if (response.data.mensagem) {
+          alert(response.data.mensagem);
+        }
       }
     } catch (error) {
-      if (error.response && error.response.status === 401) {
-        setErroLogin('Usuário ou senha inválidos');
+      if (error.response && error.response.data) {
+        if (error.response.data.precisaCodigo) {
+          setMostrarCampoCodigo(true);
+          setErroLogin('Digite seu código de ativação para autorizar este dispositivo.');
+        } else {
+          setErroLogin(error.response.data.erro || 'Erro no servidor');
+        }
       } else {
         setErroLogin('Erro no servidor. Tente novamente.');
       }
     }
   };
 
-  // ========== FUNÇÃO DE CADASTRO COM CÓDIGO (MODIFICADA COM LOGIN AUTOMÁTICO) ==========
+  // ========== FUNÇÃO DE CADASTRO COM CÓDIGO E FINGERPRINT ==========
   const handleCadastro = async () => {
     if (!formCadastro.usuario || !formCadastro.senha || !formCadastro.confirmarSenha || !formCadastro.codigo) {
       setErroLogin('Preencha todos os campos obrigatórios (usuário, senha, código)');
@@ -145,37 +180,42 @@ function App() {
       return;
     }
 
+    // Gerar fingerprint do dispositivo
+    const fingerprint = await gerarFingerprint();
+    if (!fingerprint) {
+      setErroLogin('Erro ao identificar seu dispositivo. Tente novamente.');
+      return;
+    }
+
     try {
       const response = await axios.post(`${API_URL}/api/cadastro`, {
         usuario: formCadastro.usuario,
         senha: formCadastro.senha,
         email: formCadastro.email || null,
-        codigo: formCadastro.codigo
+        codigo: formCadastro.codigo,
+        fingerprint: fingerprint
       });
 
       if (response.data.sucesso) {
-        // Salvar a frase gerada para mostrar
         setFraseGerada(response.data.fraseRecuperacao);
         
-        // Já fazer login automático com os dados recebidos
         setUsuario(response.data.usuario);
         setUsuarioId(response.data.usuarioId);
         localStorage.setItem('usuario', response.data.usuario);
         localStorage.setItem('usuarioId', response.data.usuarioId);
         
-        // Limpar formulário
         setFormCadastro({ usuario: '', senha: '', confirmarSenha: '', email: '', codigo: '' });
         setErroLogin('');
-        
-        // Buscar créditos do novo usuário
         buscarCreditos(response.data.usuarioId);
-        
-        // Mostrar tela com a frase
         setMostrarFrase(true);
       }
     } catch (error) {
       if (error.response && error.response.data && error.response.data.erro) {
-        setErroLogin(error.response.data.erro);
+        if (error.response.data.erro.includes('dispositivo')) {
+          setErroLogin('❌ Este dispositivo já possui uma conta ativa. Cada dispositivo só pode ter uma conta.');
+        } else {
+          setErroLogin(error.response.data.erro);
+        }
       } else {
         setErroLogin('Erro no servidor. Tente novamente.');
       }
@@ -288,7 +328,6 @@ function App() {
       const processado = processarResposta(response.data.resultado);
       setRoteiroGerado(processado);
       
-      // Incrementar créditos
       const creditosResponse = await axios.post(`${API_URL}/api/incrementar-creditos`, {
         usuarioId
       });
@@ -647,28 +686,60 @@ function App() {
             {modoLogin === 'login' && !modoRecuperacao && !mostrarFrase && (
               <div className="login-form">
                 <h3>🔐 Entrar</h3>
-                <input
-                  type="text"
-                  placeholder="Nome de usuário"
-                  value={formLogin.usuario}
-                  onChange={(e) => setFormLogin({ ...formLogin, usuario: e.target.value })}
-                  className="login-input"
-                />
-                <input
-                  type="password"
-                  placeholder="Senha"
-                  value={formLogin.senha}
-                  onChange={(e) => setFormLogin({ ...formLogin, senha: e.target.value })}
-                  className="login-input"
-                />
+                
+                {mostrarCampoCodigo ? (
+                  <>
+                    <p className="aviso-codigo">
+                      🔑 Dispositivo não reconhecido. Digite seu código de ativação para autorizar.
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="Código de ativação"
+                      value={codigoDispositivo}
+                      onChange={(e) => setCodigoDispositivo(e.target.value)}
+                      className="login-input"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Nome de usuário"
+                      value={formLogin.usuario}
+                      onChange={(e) => setFormLogin({ ...formLogin, usuario: e.target.value })}
+                      className="login-input"
+                    />
+                    <input
+                      type="password"
+                      placeholder="Senha"
+                      value={formLogin.senha}
+                      onChange={(e) => setFormLogin({ ...formLogin, senha: e.target.value })}
+                      className="login-input"
+                    />
+                  </>
+                )}
+                
                 {erroLogin && <p className="erro-login">{erroLogin}</p>}
                 
                 <button 
                   className="btn-login-submit"
                   onClick={handleLogin}
                 >
-                  Entrar
+                  {mostrarCampoCodigo ? 'Autorizar Dispositivo' : 'Entrar'}
                 </button>
+                
+                {mostrarCampoCodigo && (
+                  <button 
+                    className="btn-link"
+                    onClick={() => {
+                      setMostrarCampoCodigo(false);
+                      setCodigoDispositivo('');
+                      setErroLogin('');
+                    }}
+                  >
+                    ← Voltar
+                  </button>
+                )}
                 
                 <button 
                   className="btn-link"
@@ -779,6 +850,8 @@ function App() {
               setMostrarLogin(false);
               setMostrarFrase(false);
               setModoRecuperacao(false);
+              setMostrarCampoCodigo(false);
+              setCodigoDispositivo('');
             }}>
               Fechar
             </button>

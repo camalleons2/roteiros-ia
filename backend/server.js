@@ -27,29 +27,10 @@ db.serialize(() => {
       ip TEXT,
       reset_token TEXT,
       reset_expira INTEGER,
+      frase_hash TEXT,
       data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
-
-  db.all("PRAGMA table_info(usuarios)", (err, columns) => {
-    if (err) {
-      console.error('Erro ao verificar colunas:', err);
-      return;
-    }
-    const temFraseHash = columns.some(col => col.name === 'frase_hash');
-    if (!temFraseHash) {
-      console.log('🔄 Adicionando coluna frase_hash...');
-      db.run(`ALTER TABLE usuarios ADD COLUMN frase_hash TEXT`, (err) => {
-        if (err) {
-          console.error('❌ Erro ao adicionar frase_hash:', err);
-        } else {
-          console.log('✅ Coluna frase_hash adicionada com sucesso!');
-        }
-      });
-    } else {
-      console.log('✅ Coluna frase_hash já existe');
-    }
-  });
 
   db.run(`
     CREATE TABLE IF NOT EXISTS creditos (
@@ -75,6 +56,23 @@ db.serialize(() => {
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
     )
   `);
+
+  // ========== NOVA TABELA DE DISPOSITIVOS AUTORIZADOS ==========
+  db.run(`
+    CREATE TABLE IF NOT EXISTS dispositivos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id INTEGER NOT NULL,
+      fingerprint TEXT NOT NULL,
+      ultimo_acesso DATETIME DEFAULT CURRENT_TIMESTAMP,
+      criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+      ativo INTEGER DEFAULT 1,
+      FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+      UNIQUE(usuario_id, fingerprint)
+    )
+  `);
+
+  // ========== ÍNDICE PARA BUSCA RÁPIDA ==========
+  db.run(`CREATE INDEX IF NOT EXISTS idx_dispositivos_fingerprint ON dispositivos(fingerprint)`);
 });
 
 console.log(`💾 Banco de dados SQLite atualizado: ${dbPath}`);
@@ -160,28 +158,19 @@ app.get('/api/admin/listar-codigos', (req, res) => {
   });
 });
 
-// ========== ROTAS DE AUTENTICAÇÃO ==========
-app.post('/api/login', (req, res) => {
-  const { usuario, senha } = req.body;
-  db.get('SELECT * FROM usuarios WHERE nome = ? AND senha = ?', [usuario, senha], (err, row) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ erro: 'Erro no servidor' });
-    }
-    if (row) {
-      res.json({ sucesso: true, usuario: row.nome, usuarioId: row.id });
-    } else {
-      res.status(401).json({ erro: 'Usuário ou senha inválidos' });
-    }
-  });
-});
-
+// ========== ROTA DE CADASTRO COM FINGERPRINT ==========
 app.post('/api/cadastro', (req, res) => {
-  const { usuario, senha, email, codigo } = req.body;
+  const { usuario, senha, email, codigo, fingerprint } = req.body;
   const ip = req.ip || req.connection.remoteAddress;
+  
   if (!usuario || !senha || !codigo) {
     return res.status(400).json({ erro: 'Preencha todos os campos' });
   }
+
+  if (!fingerprint) {
+    return res.status(400).json({ erro: 'Erro ao identificar dispositivo' });
+  }
+  
   db.get('SELECT * FROM codigos WHERE codigo = ? AND usado = 0', [codigo], (err, codigoRow) => {
     if (err) {
       console.error(err);
@@ -190,55 +179,180 @@ app.post('/api/cadastro', (req, res) => {
     if (!codigoRow) {
       return res.status(400).json({ erro: '❌ Código inválido' });
     }
-    db.get('SELECT id FROM usuarios WHERE nome = ?', [usuario], (err, usuarioRow) => {
-      if (usuarioRow) {
-        return res.status(400).json({ erro: 'Nome de usuário já existe' });
-      }
-      if (email) {
-        db.get('SELECT id FROM usuarios WHERE email = ?', [email], (err, emailRow) => {
-          if (emailRow) {
-            return res.status(400).json({ erro: 'Email já cadastrado' });
+    
+    // Verificar se fingerprint já possui conta
+    db.get(
+      `SELECT u.* FROM usuarios u 
+       INNER JOIN dispositivos d ON u.id = d.usuario_id 
+       WHERE d.fingerprint = ? AND d.ativo = 1`,
+      [fingerprint],
+      (err, dispositivoExistente) => {
+        if (err) {
+          console.error(err);
+          return res.status(500).json({ erro: 'Erro no servidor' });
+        }
+        
+        if (dispositivoExistente) {
+          return res.status(400).json({ 
+            erro: '❌ Este dispositivo já possui uma conta ativa.' 
+          });
+        }
+        
+        db.get('SELECT id FROM usuarios WHERE nome = ?', [usuario], (err, usuarioRow) => {
+          if (usuarioRow) {
+            return res.status(400).json({ erro: 'Nome de usuário já existe' });
           }
-        });
-      }
-      const fraseRecuperacao = gerarFraseRecuperacao();
-      const fraseHash = crypto.createHash('sha256').update(fraseRecuperacao).digest('hex');
-      db.run(
-        'INSERT INTO usuarios (nome, senha, email, ip, frase_hash) VALUES (?, ?, ?, ?, ?)',
-        [usuario, senha, email || null, ip, fraseHash],
-        function(err) {
-          if (err) {
-            console.error(err);
-            return res.status(500).json({ erro: 'Erro ao criar usuário' });
-          }
-          const usuarioId = this.lastID;
+          
+          const fraseRecuperacao = gerarFraseRecuperacao();
+          const fraseHash = crypto.createHash('sha256').update(fraseRecuperacao).digest('hex');
+          
           db.run(
-            'UPDATE codigos SET usado = 1, usado_em = CURRENT_TIMESTAMP, usuario_id = ? WHERE id = ?',
-            [usuarioId, codigoRow.id],
+            'INSERT INTO usuarios (nome, senha, email, ip, frase_hash) VALUES (?, ?, ?, ?, ?)',
+            [usuario, senha, email || null, ip, fraseHash],
             function(err) {
               if (err) {
                 console.error(err);
+                return res.status(500).json({ erro: 'Erro ao criar usuário' });
               }
+              
+              const usuarioId = this.lastID;
+              
+              db.run(
+                'UPDATE codigos SET usado = 1, usado_em = CURRENT_TIMESTAMP, usuario_id = ?, usuario_email = ? WHERE id = ?',
+                [usuarioId, email || null, codigoRow.id],
+                function(err) {
+                  if (err) console.error(err);
+                }
+              );
+              
+              // Registrar dispositivo
+              db.run(
+                'INSERT INTO dispositivos (usuario_id, fingerprint) VALUES (?, ?)',
+                [usuarioId, fingerprint],
+                function(err) {
+                  if (err) console.error('Erro ao registrar dispositivo:', err);
+                }
+              );
+              
+              const hoje = new Date().toISOString().split('T')[0];
+              db.run(
+                'INSERT INTO creditos (usuario_id, data, usado, limite) VALUES (?, ?, 0, 10)',
+                [usuarioId, hoje]
+              );
+              
+              res.json({ 
+                sucesso: true, 
+                usuario, 
+                usuarioId,
+                fraseRecuperacao: fraseRecuperacao,
+                mensagem: '✅ Conta criada! GUARDE ESTA FRASE.' 
+              });
             }
           );
-          const hoje = new Date().toISOString().split('T')[0];
-          db.run(
-            'INSERT INTO creditos (usuario_id, data, usado, limite) VALUES (?, ?, 0, 10)',
-            [usuarioId, hoje]
-          );
-          res.json({ 
-            sucesso: true, 
-            usuario, 
-            usuarioId,
-            fraseRecuperacao: fraseRecuperacao,
-            mensagem: '✅ Conta criada! GUARDE ESTA FRASE.'
-          });
-        }
-      );
-    });
+        });
+      }
+    );
   });
 });
 
+// ========== ROTA DE LOGIN COM FINGERPRINT ==========
+app.post('/api/login', (req, res) => {
+  const { usuario, senha, fingerprint, codigoDispositivo } = req.body;
+  
+  if (!usuario || !senha) {
+    return res.status(400).json({ erro: 'Preencha todos os campos' });
+  }
+
+  if (!fingerprint) {
+    return res.status(400).json({ erro: 'Erro ao identificar dispositivo' });
+  }
+  
+  db.get('SELECT * FROM usuarios WHERE nome = ? AND senha = ?', [usuario, senha], (err, user) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ erro: 'Erro no servidor' });
+    }
+    
+    if (!user) {
+      return res.status(401).json({ erro: 'Usuário ou senha inválidos' });
+    }
+    
+    db.get(
+      'SELECT * FROM dispositivos WHERE usuario_id = ? AND fingerprint = ? AND ativo = 1',
+      [user.id, fingerprint],
+      (err, dispositivo) => {
+        if (err) {
+          console.error(err);
+          return res.status(500).json({ erro: 'Erro no servidor' });
+        }
+        
+        if (dispositivo) {
+          db.run('UPDATE dispositivos SET ultimo_acesso = CURRENT_TIMESTAMP WHERE id = ?', [dispositivo.id]);
+          return res.json({ sucesso: true, usuario: user.nome, usuarioId: user.id });
+        }
+        
+        if (!codigoDispositivo) {
+          return res.status(401).json({ 
+            erro: 'Dispositivo não reconhecido. Digite seu código de ativação.',
+            precisaCodigo: true 
+          });
+        }
+        
+        db.get(
+          'SELECT * FROM codigos WHERE codigo = ? AND usado = 1 AND usuario_id = ?',
+          [codigoDispositivo, user.id],
+          (err, codigo) => {
+            if (err) {
+              console.error(err);
+              return res.status(500).json({ erro: 'Erro no servidor' });
+            }
+            
+            if (!codigo) {
+              return res.status(401).json({ erro: 'Código de ativação inválido' });
+            }
+            
+            db.get(
+              'SELECT COUNT(*) as total FROM dispositivos WHERE usuario_id = ? AND ativo = 1',
+              [user.id],
+              (err, result) => {
+                if (err) {
+                  console.error(err);
+                  return res.status(500).json({ erro: 'Erro no servidor' });
+                }
+                
+                if (result.total >= 3) {
+                  return res.status(401).json({ 
+                    erro: 'Limite de dispositivos atingido (máx 3).' 
+                  });
+                }
+                
+                db.run(
+                  'INSERT INTO dispositivos (usuario_id, fingerprint) VALUES (?, ?)',
+                  [user.id, fingerprint],
+                  function(err) {
+                    if (err) {
+                      console.error(err);
+                      return res.status(500).json({ erro: 'Erro ao autorizar dispositivo' });
+                    }
+                    
+                    res.json({ 
+                      sucesso: true, 
+                      usuario: user.nome, 
+                      usuarioId: user.id,
+                      mensagem: '✅ Novo dispositivo autorizado!'
+                    });
+                  }
+                );
+              }
+            );
+          }
+        );
+      }
+    );
+  });
+});
+
+// ========== ROTA DE RECUPERAÇÃO POR FRASE ==========
 app.post('/api/recuperar-frase', (req, res) => {
   const { frase, novaSenha } = req.body;
   if (!frase || !novaSenha) {
@@ -327,7 +441,7 @@ app.get('/api/teste', (req, res) => {
     mensagem: '✅ API funcionando!',
     chavesAtivas: apiKeys.length,
     groqDisponivel: groqAvailable,
-    banco: 'SQLite com códigos'
+    banco: 'SQLite com códigos e dispositivos'
   });
 });
 
@@ -361,7 +475,6 @@ app.post('/api/gerar-roteiro', async (req, res) => {
     const prompt = tipoVideo === 'curto'
       ? `Crie um roteiro CURTO (máximo 60 segundos) sobre: "${ideia}". ${instrucaoIdioma} ${instrucaoTom} Formato obrigatório: TÍTULO: [título] ROTEIRO: [roteiro completo]`
       : `Crie um roteiro LONGO (mínimo 5 minutos) sobre: "${ideia}". ${instrucaoIdioma} ${instrucaoTom} Formato obrigatório: TÍTULO: [título] ROTEIRO: [roteiro completo]`;
-    let lastError = null;
     let tentativas = 0;
     while (tentativas < apiKeys.length * 2) {
       tentativas++;
@@ -382,7 +495,6 @@ app.post('/api/gerar-roteiro', async (req, res) => {
         return res.json({ resultado: texto });
       } catch (error) {
         console.error(`❌ Erro com chave:`, error.message);
-        lastError = error;
         if (error.status === 429) {
           console.log('⚠️ Rate limit, tentando próxima chave...');
           continue;
@@ -458,20 +570,6 @@ app.post('/api/webhook-lastlink', express.json(), async (req, res) => {
     console.error('❌ Erro no webhook:', error);
     res.status(500).json({ erro: 'Erro interno' });
   }
-});
-// ========== ROTA TEMPORÁRIA PARA ADICIONAR COLUNA ==========
-app.get('/api/add-email-column', (req, res) => {
-  db.run("ALTER TABLE codigos ADD COLUMN usuario_email TEXT", (err) => {
-    if (err) {
-      if (err.message.includes('duplicate column name')) {
-        res.send('✅ Coluna usuario_email já existe');
-      } else {
-        res.status(500).send('❌ Erro: ' + err.message);
-      }
-    } else {
-      res.send('✅ Coluna usuario_email adicionada com sucesso!');
-    }
-  });
 });
 
 const PORT = process.env.PORT || 3001;
