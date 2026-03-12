@@ -646,6 +646,10 @@ app.get('/api/recreate-db', (req, res) => {
       `);
       
       console.log('✅ Banco recriado com sucesso!');
+      
+      // ATUALIZA A VARIÁVEL GLOBAL db PARA A NOVA CONEXÃO
+      global.db = novaDb;
+      
       res.send('✅ Banco de dados recriado com sucesso! Agora gere novos códigos.');
     });
     
