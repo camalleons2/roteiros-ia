@@ -69,18 +69,18 @@ db.serialize(() => {
   `);
 
   // ========== NOVA TABELA DE CÓDIGOS DE ATIVAÇÃO ==========
-  db.run(`
-    CREATE TABLE IF NOT EXISTS codigos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      codigo TEXT UNIQUE NOT NULL,
-      usado INTEGER DEFAULT 0,
-      criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-      usado_em DATETIME,
-      usuario_id INTEGER,
-      FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-    )
-  `);
-});
+db.run(`
+  CREATE TABLE IF NOT EXISTS codigos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo TEXT UNIQUE NOT NULL,
+    usado INTEGER DEFAULT 0,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    usado_em DATETIME,
+    usuario_id INTEGER,
+    usuario_email TEXT,  ← NOVA COLUNA ADICIONADA
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+  )
+`);
 
 console.log(`💾 Banco de dados SQLite atualizado: ${dbPath}`);
 
