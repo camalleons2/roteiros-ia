@@ -664,6 +664,54 @@ app.get('/api/recreate-db', (req, res) => {
     res.status(500).send('Erro: ' + error.message);
   }
 });
+// ========== ROTA TEMPORÁRIA PARA TROCAR O BANCO DE DADOS ==========
+app.get('/api/swap-db', (req, res) => {
+  const fs = require('fs');
+  const dbPath = path.join(__dirname, 'database.sqlite');
+  const oldDbPath = path.join(__dirname, 'database-old.sqlite');
+  const newDbPath = path.join(__dirname, 'database-new.sqlite');
+
+  try {
+    // 1. Verifica se o banco novo existe
+    if (!fs.existsSync(newDbPath)) {
+      return res.status(404).send('❌ Arquivo database-new.sqlite não encontrado. Execute /api/recreate-db primeiro.');
+    }
+
+    // 2. Fecha a conexão atual do banco para poder renomear os arquivos
+    db.close((err) => {
+      if (err) {
+        console.error('Erro ao fechar banco:', err);
+        return res.status(500).send('Erro ao fechar banco.');
+      }
+      console.log('🔒 Conexão com o banco fechada.');
+
+      // 3. Renomeia o banco antigo para .old (se ele existir)
+      if (fs.existsSync(dbPath)) {
+        fs.renameSync(dbPath, oldDbPath);
+        console.log('🗑️ Banco antigo renomeado para database-old.sqlite');
+      }
+
+      // 4. Renomeia o banco novo para database.sqlite (o nome que o app espera)
+      fs.renameSync(newDbPath, dbPath);
+      console.log('✅ Banco novo ativado: database-new.sqlite → database.sqlite');
+
+      res.send(`
+        <h2>✅ Banco de dados trocado com sucesso!</h2>
+        <p>O novo banco agora é o <code>database.sqlite</code>.</p>
+        <p><strong>⚠️ Ação necessária:</strong></p>
+        <ol>
+          <li>Reinicie o serviço manualmente no dashboard do Render.</li>
+          <li>Após a reinicialização, o novo banco estará ativo.</li>
+        </ol>
+        <p>O banco antigo foi preservado como <code>database-old.sqlite</code>.</p>
+      `);
+    });
+  } catch (error) {
+    console.error('❌ Erro ao trocar banco:', error);
+    res.status(500).send('Erro: ' + error.message);
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`\n🚀 Servidor rodando na porta ${PORT}`);
