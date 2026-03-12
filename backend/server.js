@@ -1,4 +1,4 @@
-// versão final)
+// versão final com tabela codigos recriada
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -45,20 +45,35 @@ db.serialize(() => {
     )
   `);
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS codigos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      codigo TEXT UNIQUE NOT NULL,
-      usado INTEGER DEFAULT 0,
-      criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-      usado_em DATETIME,
-      usuario_id INTEGER,
-      usuario_email TEXT,
-      FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-    )
-  `);
+  // ========== RECRIANDO TABELA DE CÓDIGOS (LIMPA) ==========
+  db.run(`DROP TABLE IF EXISTS codigos`, (err) => {
+    if (err) {
+      console.error('Erro ao dropar tabela codigos:', err);
+    } else {
+      console.log('🗑️ Tabela codigos removida');
+      
+      db.run(`
+        CREATE TABLE codigos (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          codigo TEXT UNIQUE NOT NULL,
+          usado INTEGER DEFAULT 0,
+          criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+          usado_em DATETIME,
+          usuario_id INTEGER,
+          usuario_email TEXT,
+          FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+        )
+      `, (err) => {
+        if (err) {
+          console.error('Erro ao criar tabela codigos:', err);
+        } else {
+          console.log('✅ Tabela codigos recriada com sucesso!');
+        }
+      });
+    }
+  });
 
-  // ========== NOVA TABELA DE DISPOSITIVOS AUTORIZADOS ==========
+  // ========== TABELA DE DISPOSITIVOS AUTORIZADOS ==========
   db.run(`
     CREATE TABLE IF NOT EXISTS dispositivos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -572,177 +587,9 @@ app.post('/api/webhook-lastlink', express.json(), async (req, res) => {
     res.status(500).json({ erro: 'Erro interno' });
   }
 });
-// // ========== ROTA PARA RECRIAR O BANCO (VERSÃO FINAL) ==========
-app.get('/api/recreate-db', (req, res) => {
-  const fs = require('fs');
-  const dbPath = path.join(__dirname, 'database.sqlite');
-  const tempDbPath = path.join(__dirname, 'database-new.sqlite');
 
-  try {
-    // Cria um novo banco de dados em um arquivo temporário
-    console.log('🔄 Criando novo banco de dados...');
-    const novoDb = new sqlite3.Database(tempDbPath);
-    
-    novoDb.serialize(() => {
-      // Cria todas as tabelas
-      novoDb.run(`
-        CREATE TABLE usuarios (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          nome TEXT UNIQUE NOT NULL,
-          senha TEXT NOT NULL,
-          email TEXT UNIQUE,
-          ip TEXT,
-          reset_token TEXT,
-          reset_expira INTEGER,
-          frase_hash TEXT,
-          data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      
-      novoDb.run(`
-        CREATE TABLE creditos (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          usuario_id INTEGER NOT NULL,
-          data TEXT NOT NULL,
-          usado INTEGER DEFAULT 0,
-          limite INTEGER DEFAULT 10,
-          FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
-          UNIQUE(usuario_id, data)
-        )
-      `);
-      
-      novoDb.run(`
-        CREATE TABLE codigos (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          codigo TEXT UNIQUE NOT NULL,
-          usado INTEGER DEFAULT 0,
-          criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-          usado_em DATETIME,
-          usuario_id INTEGER,
-          usuario_email TEXT,
-          FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
-        )
-      `);
-      
-      novoDb.run(`
-        CREATE TABLE dispositivos (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          usuario_id INTEGER NOT NULL,
-          fingerprint TEXT NOT NULL,
-          ultimo_acesso DATETIME DEFAULT CURRENT_TIMESTAMP,
-          criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-          ativo INTEGER DEFAULT 1,
-          FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
-          UNIQUE(usuario_id, fingerprint)
-        )
-      `);
-      
-      novoDb.run(`CREATE INDEX IF NOT EXISTS idx_dispositivos_fingerprint ON dispositivos(fingerprint)`);
-      
-      novoDb.close();
-      console.log('✅ Novo banco criado com sucesso em:', tempDbPath);
-      
-      // Instruções para o usuário
-      res.send(`
-        <h2>✅ Banco recriado com sucesso!</h2>
-        <p>O novo banco foi criado em: <code>${tempDbPath}</code></p>
-        <p><strong>⚠️ Ação necessária:</strong></p>
-        <ol>
-          <li>Execute os seguintes comandos no shell do Render para substituir o banco antigo pelo novo:</li>
-          <pre>
-            cd /opt/render/project/src/backend
-            mv database.sqlite database-old.sqlite
-            mv database-new.sqlite database.sqlite
-          </pre>
-          <li>Reinicie o serviço manualmente no dashboard do Render.</li>
-        </ol>
-        <p>Após reiniciar, o novo banco estará ativo.</p>
-      `);
-    });
-  } catch (error) {
-    console.error('❌ Erro ao recriar banco:', error);
-    res.status(500).send('Erro: ' + error.message);
-  }
-});
-// ========== ROTA TEMPORÁRIA PARA TROCAR O BANCO DE DADOS ==========
-app.get('/api/swap-db', (req, res) => {
-  const fs = require('fs');
-  const dbPath = path.join(__dirname, 'database.sqlite');
-  const oldDbPath = path.join(__dirname, 'database-old.sqlite');
-  const newDbPath = path.join(__dirname, 'database-new.sqlite');
-
-  try {
-    // 1. Verifica se o banco novo existe
-    if (!fs.existsSync(newDbPath)) {
-      return res.status(404).send('❌ Arquivo database-new.sqlite não encontrado. Execute /api/recreate-db primeiro.');
-    }
-
-    // 2. Fecha a conexão atual do banco para poder renomear os arquivos
-    db.close((err) => {
-      if (err) {
-        console.error('Erro ao fechar banco:', err);
-        return res.status(500).send('Erro ao fechar banco.');
-      }
-      console.log('🔒 Conexão com o banco fechada.');
-
-      // 3. Renomeia o banco antigo para .old (se ele existir)
-      if (fs.existsSync(dbPath)) {
-        fs.renameSync(dbPath, oldDbPath);
-        console.log('🗑️ Banco antigo renomeado para database-old.sqlite');
-      }
-
-      // 4. Renomeia o banco novo para database.sqlite (o nome que o app espera)
-      fs.renameSync(newDbPath, dbPath);
-      console.log('✅ Banco novo ativado: database-new.sqlite → database.sqlite');
-
-      res.send(`
-        <h2>✅ Banco de dados trocado com sucesso!</h2>
-        <p>O novo banco agora é o <code>database.sqlite</code>.</p>
-        <p><strong>⚠️ Ação necessária:</strong></p>
-        <ol>
-          <li>Reinicie o serviço manualmente no dashboard do Render.</li>
-          <li>Após a reinicialização, o novo banco estará ativo.</li>
-        </ol>
-        <p>O banco antigo foi preservado como <code>database-old.sqlite</code>.</p>
-      `);
-    });
-  } catch (error) {
-    console.error('❌ Erro ao trocar banco:', error);
-    res.status(500).send('Erro: ' + error.message);
-  }
-});
-// ========== ROTA DE RESET SIMPLIFICADA (INFALÍVEL) ==========
-app.get('/api/reset-db-simple', (req, res) => {
-  const fs = require('fs');
-  const dbPath = path.join(__dirname, 'database.sqlite');
-  const backupPath = path.join(__dirname, `database-backup-${Date.now()}.sqlite`);
-
-  try {
-    // 1. Tenta fechar a conexão, mas não interrompe se falhar
-    try { db.close(); } catch (e) { console.log('Ignorando erro ao fechar conexão.'); }
-
-    // 2. Renomeia o banco antigo (se existir) para backup
-    if (fs.existsSync(dbPath)) {
-      fs.renameSync(dbPath, backupPath);
-      console.log(`✅ Backup criado: ${backupPath}`);
-    }
-
-    // 3. Cria um banco NOVO e vazio diretamente no lugar do antigo
-    const novoDb = new sqlite3.Database(dbPath);
-    novoDb.serialize(() => {
-      novoDb.run(`CREATE TABLE usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE NOT NULL, senha TEXT NOT NULL, email TEXT UNIQUE, ip TEXT, reset_token TEXT, reset_expira INTEGER, frase_hash TEXT, data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP)`);
-      novoDb.run(`CREATE TABLE creditos (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario_id INTEGER NOT NULL, data TEXT NOT NULL, usado INTEGER DEFAULT 0, limite INTEGER DEFAULT 10, FOREIGN KEY (usuario_id) REFERENCES usuarios(id), UNIQUE(usuario_id, data))`);
-      novoDb.run(`CREATE TABLE codigos (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE NOT NULL, usado INTEGER DEFAULT 0, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, usado_em DATETIME, usuario_id INTEGER, usuario_email TEXT, FOREIGN KEY (usuario_id) REFERENCES usuarios(id))`);
-      novoDb.run(`CREATE TABLE dispositivos (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario_id INTEGER NOT NULL, fingerprint TEXT NOT NULL, ultimo_acesso DATETIME DEFAULT CURRENT_TIMESTAMP, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, ativo INTEGER DEFAULT 1, FOREIGN KEY (usuario_id) REFERENCES usuarios(id), UNIQUE(usuario_id, fingerprint))`);
-      novoDb.run(`CREATE INDEX IF NOT EXISTS idx_dispositivos_fingerprint ON dispositivos(fingerprint)`);
-      novoDb.close();
-    });
-
-    res.send(`<h2>✅ Banco resetado com sucesso!</h2><p>Backup criado: ${backupPath}</p><p>Reinicie o serviço no dashboard do Render.</p>`);
-  } catch (error) {
-    res.status(500).send('Erro: ' + error.message);
-  }
-});
+// As rotas administrativas extras (recreate-db, swap-db, reset-db-simple) foram removidas
+// para manter o código mais limpo e seguro, já que não são mais necessárias.
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
