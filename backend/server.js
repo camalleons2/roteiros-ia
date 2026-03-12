@@ -990,6 +990,70 @@ app.get('/admin/codigos', (req, res) => {
   });
 });
 
+// ========== WEBHOOK PARA RECEBER CONFIRMAÇÕES DA LASTLINK ==========
+app.post('/api/webhook-lastlink', express.json(), async (req, res) => {
+  try {
+    // Log para debug (você verá no console do Render)
+    console.log('📩 Webhook recebido da Lastlink:', req.body);
+    
+    // Extrair informações da compra
+    const { event, data } = req.body;
+    
+    // Verificar se é uma compra confirmada
+    if (event === 'Purchase_Order_Confirmed' && data) {
+      const emailCliente = data.customer?.email;
+      const nomeCliente = data.customer?.name || 'Cliente';
+      const pedidoId = data.id;
+      
+      console.log(`✅ Venda confirmada! Cliente: ${emailCliente}, Pedido: ${pedidoId}`);
+      
+      // Buscar um código disponível no banco
+      db.get('SELECT codigo FROM codigos WHERE usado = 0 LIMIT 1', [], (err, row) => {
+        if (err) {
+          console.error('Erro ao buscar código:', err);
+          return res.status(500).json({ erro: 'Erro ao buscar código' });
+        }
+        
+        if (!row) {
+          console.error('❌ Nenhum código disponível!');
+          return res.status(404).json({ erro: 'Sem códigos disponíveis' });
+        }
+        
+        const codigoAtivacao = row.codigo;
+        console.log(`🔑 Código selecionado: ${codigoAtivacao}`);
+        
+        // Marcar o código como usado e associar ao e-mail do cliente
+        db.run(
+          'UPDATE codigos SET usado = 1, usado_em = CURRENT_TIMESTAMP, usuario_email = ? WHERE codigo = ?',
+          [emailCliente, codigoAtivacao],
+          function(err) {
+            if (err) {
+              console.error('Erro ao marcar código como usado:', err);
+              return res.status(500).json({ erro: 'Erro ao atualizar código' });
+            }
+            
+            console.log(`✅ Código ${codigoAtivacao} marcado como usado para ${emailCliente}`);
+            
+            // Aqui você pode integrar com um serviço de e-mail (opcional)
+            // enviarEmailConfirmacao(emailCliente, nomeCliente, codigoAtivacao);
+            
+            // Responder para a Lastlink que tudo foi processado
+            res.json({ sucesso: true, mensagem: 'Código reservado com sucesso' });
+          }
+        );
+      });
+    } else {
+      // Outros eventos (podem ser ignorados ou logados)
+      console.log('ℹ️ Evento ignorado:', event);
+      res.json({ recebido: true });
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro no webhook:', error);
+    res.status(500).json({ erro: 'Erro interno' });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`\n🚀 Servidor rodando na porta ${PORT}`);
