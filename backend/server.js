@@ -19,18 +19,18 @@ const db = new sqlite3.Database(dbPath);
 // Criar tabelas se não existirem
 db.serialize(() => {
   db.run(`
-    CREATE TABLE IF NOT EXISTS usuarios (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nome TEXT UNIQUE NOT NULL,
-      senha TEXT NOT NULL,
-      email TEXT UNIQUE,
-      ip TEXT,
-      reset_token TEXT,
-      reset_expira INTEGER,
-      frase_hash TEXT,
-      data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+  CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT UNIQUE NOT NULL,
+    senha TEXT NOT NULL,
+    email TEXT UNIQUE,
+    ip TEXT,
+    reset_token TEXT,
+    reset_expira INTEGER,
+    frase_hash TEXT,
+    data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
 
   db.run(`
     CREATE TABLE IF NOT EXISTS creditos (
