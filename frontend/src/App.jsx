@@ -5,8 +5,9 @@ import jsPDF from 'jspdf';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import './App.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://roteiros-ia.onrender.com';
-console.log('🌐 Conectando ao backend:', API_URL);
+const API_URL = 'https://roteiros-ia-api2.onrender.com';
+// Ignora a variável de ambiente e usa a URL nova diretamente
+console.log('🌐 Conectando ao backend (FIXO):', API_URL);
 
 function App() {
   // ========== TODOS OS STATES ==========
