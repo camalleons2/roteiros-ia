@@ -459,6 +459,20 @@ app.post('/api/webhook-lastlink', express.json(), async (req, res) => {
     res.status(500).json({ erro: 'Erro interno' });
   }
 });
+// ========== ROTA TEMPORÁRIA PARA ADICIONAR COLUNA ==========
+app.get('/api/add-email-column', (req, res) => {
+  db.run("ALTER TABLE codigos ADD COLUMN usuario_email TEXT", (err) => {
+    if (err) {
+      if (err.message.includes('duplicate column name')) {
+        res.send('✅ Coluna usuario_email já existe');
+      } else {
+        res.status(500).send('❌ Erro: ' + err.message);
+      }
+    } else {
+      res.send('✅ Coluna usuario_email adicionada com sucesso!');
+    }
+  });
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
