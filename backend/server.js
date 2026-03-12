@@ -711,6 +711,38 @@ app.get('/api/swap-db', (req, res) => {
     res.status(500).send('Erro: ' + error.message);
   }
 });
+// ========== ROTA DE RESET SIMPLIFICADA (INFALÍVEL) ==========
+app.get('/api/reset-db-simple', (req, res) => {
+  const fs = require('fs');
+  const dbPath = path.join(__dirname, 'database.sqlite');
+  const backupPath = path.join(__dirname, `database-backup-${Date.now()}.sqlite`);
+
+  try {
+    // 1. Tenta fechar a conexão, mas não interrompe se falhar
+    try { db.close(); } catch (e) { console.log('Ignorando erro ao fechar conexão.'); }
+
+    // 2. Renomeia o banco antigo (se existir) para backup
+    if (fs.existsSync(dbPath)) {
+      fs.renameSync(dbPath, backupPath);
+      console.log(`✅ Backup criado: ${backupPath}`);
+    }
+
+    // 3. Cria um banco NOVO e vazio diretamente no lugar do antigo
+    const novoDb = new sqlite3.Database(dbPath);
+    novoDb.serialize(() => {
+      novoDb.run(`CREATE TABLE usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE NOT NULL, senha TEXT NOT NULL, email TEXT UNIQUE, ip TEXT, reset_token TEXT, reset_expira INTEGER, frase_hash TEXT, data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+      novoDb.run(`CREATE TABLE creditos (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario_id INTEGER NOT NULL, data TEXT NOT NULL, usado INTEGER DEFAULT 0, limite INTEGER DEFAULT 10, FOREIGN KEY (usuario_id) REFERENCES usuarios(id), UNIQUE(usuario_id, data))`);
+      novoDb.run(`CREATE TABLE codigos (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE NOT NULL, usado INTEGER DEFAULT 0, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, usado_em DATETIME, usuario_id INTEGER, usuario_email TEXT, FOREIGN KEY (usuario_id) REFERENCES usuarios(id))`);
+      novoDb.run(`CREATE TABLE dispositivos (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario_id INTEGER NOT NULL, fingerprint TEXT NOT NULL, ultimo_acesso DATETIME DEFAULT CURRENT_TIMESTAMP, criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, ativo INTEGER DEFAULT 1, FOREIGN KEY (usuario_id) REFERENCES usuarios(id), UNIQUE(usuario_id, fingerprint))`);
+      novoDb.run(`CREATE INDEX IF NOT EXISTS idx_dispositivos_fingerprint ON dispositivos(fingerprint)`);
+      novoDb.close();
+    });
+
+    res.send(`<h2>✅ Banco resetado com sucesso!</h2><p>Backup criado: ${backupPath}</p><p>Reinicie o serviço no dashboard do Render.</p>`);
+  } catch (error) {
+    res.status(500).send('Erro: ' + error.message);
+  }
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
