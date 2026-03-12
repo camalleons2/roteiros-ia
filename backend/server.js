@@ -1064,3 +1064,4 @@ app.listen(PORT, () => {
   console.log(`🆕 Rota admin: http://localhost:${PORT}/api/admin/gerar-codigos (use POST)`);
   console.log(`🔐 Sistema de recuperação por frase de 12 palavras ativo\n`);
 });
+// for�a nova vers�o
